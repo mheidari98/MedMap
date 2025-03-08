@@ -1,0 +1,8 @@
+services:
+  dashboard:
+    build: .
+    restart: unless-stopped
+    environment:
+      - DASH_DEBUG_MODE=False
+      - HOST=0.0.0.0
+      - PORT=8050
