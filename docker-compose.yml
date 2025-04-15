@@ -6,3 +6,5 @@ services:
       - DASH_DEBUG_MODE=False
       - HOST=0.0.0.0
       - PORT=8050
+    ports:
+      - 8050:8050
