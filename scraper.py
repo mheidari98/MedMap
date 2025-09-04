@@ -91,10 +91,10 @@ async def main():
     df.sort_values(by='id').to_csv("medical-centers.csv", encoding='utf-8', index=False, header=True)
     logger.info("Data saved to medical-centers.csv")
     
-    # Ensure site directory exists then save JSON for static site
-    os.makedirs("site", exist_ok=True)
-    save_as_json(health_centers, "site/medical-centers.json")
-    logger.info("Data saved to site/medical-centers.json")
+    # Ensure docs directory exists then save JSON for static docs
+    os.makedirs("docs", exist_ok=True)
+    save_as_json(health_centers, "docs/medical-centers.json")
+    logger.info("Data saved to docs/medical-centers.json")
 
 if __name__ == "__main__":
     asyncio.run(main())
