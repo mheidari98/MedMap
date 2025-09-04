@@ -1,7 +1,9 @@
 import logging
+import os
 import asyncio
 import aiohttp
 import pandas as pd
+import json
 from typing import List, Dict
 
 logging.basicConfig(level=logging.INFO)
@@ -63,13 +65,36 @@ async def fetch_health_centers(city_id=None):
         all_centers = first_page + [item for page_result in results for item in page_result]
         return all_centers
 
+def save_as_json(health_centers: List[Dict], filename: str):
+    """Save health centers data as JSON file optimized for web loading."""
+    # Add URL and type_name fields
+    for center in health_centers:
+        center['URL'] = f'https://iranassistance.com/medical-centers/{center["id"]}'
+        center['type_name'] = TYPE_MAPPING.get(center['typeId'], 'Unknown')
+    
+    # Filter out centers without coordinates
+    valid_centers = [center for center in health_centers if center.get('latitude') and center.get('longitude')]
+    
+    # Save the optimized JSON file
+    with open(filename, 'w', encoding='utf-8') as f:
+        json.dump(valid_centers, f, ensure_ascii=False)
+    
+    logger.info(f"Data saved to {filename}")
+
 async def main():
     health_centers = await fetch_health_centers()
+    
+    # Save as CSV (keeping original functionality)
     df = pd.DataFrame(health_centers)
     df['URL'] = df['id'].apply(lambda x: f'https://iranassistance.com/medical-centers/{x}')
     df['type_name'] = df['typeId'].map(TYPE_MAPPING)
     df.sort_values(by='id').to_csv("medical-centers.csv", encoding='utf-8', index=False, header=True)
     logger.info("Data saved to medical-centers.csv")
+    
+    # Ensure site directory exists then save JSON for static site
+    os.makedirs("site", exist_ok=True)
+    save_as_json(health_centers, "site/medical-centers.json")
+    logger.info("Data saved to site/medical-centers.json")
 
 if __name__ == "__main__":
     asyncio.run(main())

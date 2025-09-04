@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>نقشه مراکز درمانی | MedMap</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <style>
+      :root { --bg:#f5f7fb; --card:#fff; --text:#1f2328; --muted:#6b7280; --primary:#2563eb; --accent:#0ea5e9; }
+      *{box-sizing:border-box}
+      html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"}
+      .layout{display:grid;grid-template-columns:340px 1fr;gap:14px;height:100%;padding:14px}
+      .panel{background:var(--card);border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.05);padding:14px;overflow:auto}
+      .title{margin:0 0 10px;background:var(--primary);color:#fff;padding:12px;border-radius:10px;font-size:18px;text-align:center}
+      label{display:block;margin:10px 0 6px;font-weight:600}
+      select,input,button{width:100%;padding:9px 10px;border:1px solid #d0d7de;border-radius:8px;background:#fff}
+      .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+      .btn{background:var(--accent);color:#fff;border:none;cursor:pointer}
+      .muted{color:var(--muted);font-size:12px}
+      #map{height:calc(100vh - 28px);width:100%;border-radius:12px;overflow:hidden}
+      .toggle{display:flex;align-items:center;gap:8px}
+      .range{display:flex;align-items:center;gap:8px}
+      input[type="range"]{accent-color:var(--primary)}
+      .hidden{display:none !important}
+      /* Floating action buttons (mobile) */
+      .fab{position:fixed;z-index:1100;bottom:16px;right:16px;border-radius:999px;padding:12px 14px;font-weight:600;box-shadow:0 4px 10px rgba(0,0,0,.15)}
+      .fab-primary{background:var(--accent);color:#fff;border:none}
+      .fab-secondary{background:#fff;color:var(--text);border:1px solid #d0d7de}
+      .fab-left{left:16px;right:auto}
+      @media (max-width: 900px){.layout{grid-template-columns:1fr;grid-template-rows:auto 1fr}#map{height:70vh}.fab{display:block}} 
+      @media (min-width: 901px){.fab{display:none}}
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <div class="panel">
+        <h1 class="title">نقشه مراکز درمانی 🏥</h1>
+
+        <label for="nameFilter">نام مرکز</label>
+        <input id="nameFilter" placeholder="قسمتی از نام را بنویسید" />
+
+        <label for="provinceFilter">استان</label>
+        <select id="provinceFilter"></select>
+
+        <label for="typeFilter">نوع مرکز</label>
+        <select id="typeFilter"></select>
+
+        <label for="baseLayer">نمای نقشه</label>
+        <select id="baseLayer">
+          <option value="osm">OpenStreetMap</option>
+          <option value="carto-light" selected>Carto Light</option>
+          <option value="carto-dark">Carto Dark</option>
+        </select>
+
+        <div class="toggle" style="margin-top:10px">
+          <input type="checkbox" id="nearbyOnly" />
+          <label for="nearbyOnly" style="margin:0">فقط نزدیک من</label>
+        </div>
+
+        <div class="range" style="margin-top:6px">
+          <label for="radiusKm" style="margin:0">شعاع (کم):</label>
+          <input type="range" id="radiusKm" min="2" max="50" step="1" value="15" />
+          <span id="radiusLabel" class="muted">15km</span>
+        </div>
+
+        <div class="row" style="margin-top:10px">
+          <button id="locateBtn" class="btn">📍 موقعیت من</button>
+          <button id="resetBtn">↺ بازنشانی نما</button>
+        </div>
+
+        <div id="stats" class="muted" style="margin-top:10px">در حال بارگذاری…</div>
+      </div>
+
+      <div id="map"></div>
+    </div>
+
+    <!-- Mobile actions -->
+    <button id="filtersToggle" class="fab fab-secondary fab-left" aria-label="نمایش/پنهان کردن فیلتر">فیلترها</button>
+    <button id="locateFab" class="fab fab-primary" aria-label="یافتن موقعیت">📍</button>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    <script>
+      const DATA_URL = './medical-centers.json';
+      const iranCenter = [32.4279, 53.6880];
+
+      const baseLayers = {
+        'osm': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }),
+        'carto-light': L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap &copy; CARTO' }),
+        'carto-dark': L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap &copy; CARTO' })
+      };
+
+      const map = L.map('map', { center: iranCenter, zoom: 6, layers: [baseLayers['carto-light']] });
+      const cluster = L.markerClusterGroup({ showCoverageOnHover:false, spiderfyOnMaxZoom:true, disableClusteringAtZoom:14 });
+      map.addLayer(cluster);
+
+      const state = { data: [], filtered: [] };
+
+      const $ = id => document.getElementById(id);
+      const provinceFilter = $('provinceFilter');
+      const typeFilter = $('typeFilter');
+      const nameFilter = $('nameFilter');
+      const baseLayer = $('baseLayer');
+      const nearbyOnly = $('nearbyOnly');
+      const radiusKm = $('radiusKm');
+      const radiusLabel = $('radiusLabel');
+      const stats = $('stats');
+      const filtersToggle = $('filtersToggle');
+      const locateFab = $('locateFab');
+
+      baseLayer.addEventListener('change', () => { Object.values(baseLayers).forEach(l => map.removeLayer(l)); baseLayers[baseLayer.value].addTo(map); });
+      radiusKm.addEventListener('input', () => { radiusLabel.textContent = radiusKm.value + 'km'; applyFilters(); });
+      nearbyOnly.addEventListener('change', applyFilters);
+      $('resetBtn').addEventListener('click', () => { map.setView(iranCenter, 6); nearbyOnly.checked = false; applyFilters(); });
+      $('locateBtn').addEventListener('click', () => { locateUser(true); });
+      locateFab.addEventListener('click', () => { locateUser(true); });
+      filtersToggle.addEventListener('click', () => {
+        const panel = document.querySelector('.panel');
+        const isHidden = panel.classList.toggle('hidden');
+        try { localStorage.setItem('filtersHidden', String(isHidden)); } catch(_){}
+        setTimeout(() => map.invalidateSize(), 250);
+      });
+
+      provinceFilter.addEventListener('change', applyFilters);
+      typeFilter.addEventListener('change', applyFilters);
+      nameFilter.addEventListener('input', () => { clearTimeout(nameFilter._t); nameFilter._t = setTimeout(applyFilters, 150); });
+
+      function dedupeSorted(arr){ return Array.from(new Set(arr)).sort((a,b)=> (a||'').localeCompare(b||'')); }
+      function haversine(lat1, lon1, lat2, lon2) {
+        const R = 6371; // km
+        const dLat = (lat2-lat1) * Math.PI/180;
+        const dLon = (lon2-lon1) * Math.PI/180;
+        const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      }
+
+      function populateFilters(){
+        // Provinces
+        const provs = ['All', ...dedupeSorted(state.data.map(r=>r.provinceName).filter(Boolean))];
+        provinceFilter.innerHTML = provs.map(v=>`<option value="${v}">${v==='All'?'همه':v}</option>`).join('');
+        provinceFilter.value = 'All';
+        // Types
+        const types = ['All', ...dedupeSorted(state.data.map(r=>r.type_name).filter(Boolean))];
+        typeFilter.innerHTML = types.map(v=>`<option value="${v}">${v==='All'?'همه':v}</option>`).join('');
+        typeFilter.value = 'All';
+      }
+
+      function renderMarkers(rows){
+        cluster.clearLayers();
+        rows.forEach(r => {
+          const lat = parseFloat(r.latitude), lon = parseFloat(r.longitude);
+          if (!isFinite(lat) || !isFinite(lon)) return;
+          const m = L.marker([lat, lon]);
+          const url = r.URL || `https://iranassistance.com/medical-centers/${r.id}`;
+          const safe = s => (s||'').replace(/</g,'&lt;');
+          m.bindPopup(`
+            <div style="min-width:230px">
+              <div style="font-weight:700;margin-bottom:4px">${safe(r.name)}</div>
+              <div style="color:#444">${safe(r.type_name)} • ${safe(r.provinceName || '')}</div>
+              <a href="${url}" target="_blank" rel="noopener" style="display:inline-block;margin-top:6px;color:#0a58ca">مشاهده صفحه</a>
+            </div>
+          `);
+          cluster.addLayer(m);
+        });
+        stats.textContent = `${rows.length.toLocaleString()} مرکز نمایش داده می‌شود`;
+      }
+
+      function applyFilters(){
+        const p = provinceFilter.value;
+        const t = typeFilter.value;
+        const q = (nameFilter.value||'').trim().toLowerCase();
+        let rows = state.data.filter(r => (
+          (p==='All' || r.provinceName===p) &&
+          (t==='All' || r.type_name===t) &&
+          (!q || (r.name && r.name.toLowerCase().includes(q)))
+        ));
+
+        if (nearbyOnly.checked && window._userLoc){
+          const { lat, lon } = window._userLoc;
+          const maxKm = parseFloat(radiusKm.value) || 15;
+          rows = rows
+            .map(r => ({ r, d: haversine(lat, lon, parseFloat(r.latitude), parseFloat(r.longitude)) }))
+            .filter(x => isFinite(x.d) && x.d <= maxKm)
+            .sort((a,b) => a.d - b.d)
+            .map(x => x.r);
+        }
+
+        state.filtered = rows;
+        renderMarkers(rows);
+      }
+
+      async function locateUser(jump=false){
+        if (!navigator.geolocation) return;
+        try {
+          const pos = await new Promise((res, rej)=> navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy:true, timeout:8000 }));
+          const { latitude:lat, longitude:lon } = pos.coords;
+          window._userLoc = { lat, lon };
+          L.circleMarker([lat,lon], { radius:8, color:'#e11', fillColor:'#e11', fillOpacity:.9 }).addTo(map).bindTooltip('موقعیت شما');
+          if (jump) map.setView([lat,lon], 13);
+          // Auto enable nearby-only on first successful location to show only that area
+          if (!nearbyOnly._autoSet){ nearbyOnly.checked = true; nearbyOnly._autoSet = true; }
+          applyFilters();
+        } catch(_) {}
+      }
+
+      function isMobile(){ return window.matchMedia('(max-width: 900px)').matches }
+
+      async function bootstrap(){
+        try{
+          const res = await fetch(DATA_URL, { cache:'no-store' });
+          const data = await res.json();
+          state.data = Array.isArray(data) ? data : [];
+          populateFilters();
+          applyFilters();
+          // On mobile: collapse filters (restore from preference) and show floating actions
+          if (isMobile()) {
+            const panel = document.querySelector('.panel');
+            let prefHidden = false; try { prefHidden = localStorage.getItem('filtersHidden') === 'true'; } catch(_){}
+            if (prefHidden) panel.classList.add('hidden');
+          }
+          // Try to locate to tailor view
+          locateUser(true);
+        }catch(e){ stats.textContent = 'خطا در بارگذاری داده‌ها'; console.error(e); }
+      }
+      bootstrap();
+    </script>
+  </body>
+</html>
+
