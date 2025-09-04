@@ -59,8 +59,8 @@
 
         <label for="baseLayer">نمای نقشه</label>
         <select id="baseLayer">
-          <option value="osm">OpenStreetMap</option>
-          <option value="carto-light" selected>Carto Light</option>
+          <option value="osm" selected>OpenStreetMap</option>
+          <option value="carto-light">Carto Light</option>
           <option value="carto-dark">Carto Dark</option>
         </select>
 
@@ -107,7 +107,7 @@
         'carto-dark': L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap &copy; CARTO' })
       };
 
-      const map = L.map('map', { center: iranCenter, zoom: 6, layers: [baseLayers['carto-light']] });
+      const map = L.map('map', { center: iranCenter, zoom: 6, layers: [baseLayers['osm']] });
       // Less aggressive clustering: smaller radius and earlier point rendering
       const cluster = L.markerClusterGroup({
         showCoverageOnHover:false,
