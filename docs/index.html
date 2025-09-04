@@ -24,6 +24,16 @@
       .range{display:flex;align-items:center;gap:8px}
       input[type="range"]{accent-color:var(--primary)}
       .hidden{display:none !important}
+      /* Legend */
+      .legend{margin-top:12px;border-top:1px dashed #e5e7eb;padding-top:10px}
+      .legend-title{font-weight:700;font-size:13px;margin-bottom:8px;color:#374151}
+      .legend-grid{display:grid;grid-template-columns:repeat(2, minmax(0,1fr));gap:8px;max-height:180px;overflow:auto}
+      .type-pill{display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;min-width:0}
+      .swatch{width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.15)}
+      .type-name{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      /* Colored marker dots */
+      .type-marker{background:transparent;border:none}
+      .type-marker span{display:block;width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1.5px rgba(0,0,0,.25)}
       /* Floating action buttons (mobile) */
       .fab{position:fixed;z-index:1100;bottom:16px;right:16px;border-radius:999px;padding:12px 14px;font-weight:600;box-shadow:0 4px 10px rgba(0,0,0,.15)}
       .fab-primary{background:var(--accent);color:#fff;border:none}
@@ -71,6 +81,11 @@
         </div>
 
         <div id="stats" class="muted" style="margin-top:10px">در حال بارگذاری…</div>
+
+        <div id="legend" class="legend">
+          <div class="legend-title">راهنمای رنگ نوع مرکز</div>
+          <div class="legend-grid" id="legendGrid"></div>
+        </div>
       </div>
 
       <div id="map"></div>
@@ -93,10 +108,22 @@
       };
 
       const map = L.map('map', { center: iranCenter, zoom: 6, layers: [baseLayers['carto-light']] });
-      const cluster = L.markerClusterGroup({ showCoverageOnHover:false, spiderfyOnMaxZoom:true, disableClusteringAtZoom:14 });
+      // Less aggressive clustering: smaller radius and earlier point rendering
+      const cluster = L.markerClusterGroup({
+        showCoverageOnHover:false,
+        spiderfyOnMaxZoom:true,
+        maxClusterRadius: 30,      // default ~80; smaller -> fewer clusters
+        disableClusteringAtZoom:12 // show individual points from zoom 12+
+      });
       map.addLayer(cluster);
 
       const state = { data: [], filtered: [] };
+      // Color palette for distinct types (cycled if needed)
+      const palette = [
+        '#e11d48','#2563eb','#059669','#9333ea','#f59e0b','#ef4444','#06b6d4','#f97316','#22c55e','#3b82f6',
+        '#a855f7','#14b8a6','#f43f5e','#0ea5e9','#84cc16','#dc2626','#f59e0b','#10b981','#c026d3','#0284c7'
+      ];
+      const typeColors = {}; // type_name -> color
 
       const $ = id => document.getElementById(id);
       const provinceFilter = $('provinceFilter');
@@ -136,6 +163,23 @@
         return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
       }
 
+      function renderLegend(types){
+        const grid = document.getElementById('legendGrid');
+        if (!grid) return;
+        const visible = types.filter(t => t && t !== 'All');
+        grid.innerHTML = visible.map(t => `
+          <div class="type-pill" title="${t}">
+            <span class="swatch" style="background:${typeColors[t] || '#888'}"></span>
+            <span class="type-name">${t}</span>
+          </div>
+        `).join('');
+      }
+
+      function assignTypeColors(types){
+        const realTypes = types.filter(t => t && t !== 'All');
+        realTypes.forEach((t, i) => { if (!typeColors[t]) typeColors[t] = palette[i % palette.length]; });
+      }
+
       function populateFilters(){
         // Provinces
         const provs = ['All', ...dedupeSorted(state.data.map(r=>r.provinceName).filter(Boolean))];
@@ -145,6 +189,12 @@
         const types = ['All', ...dedupeSorted(state.data.map(r=>r.type_name).filter(Boolean))];
         typeFilter.innerHTML = types.map(v=>`<option value="${v}">${v==='All'?'همه':v}</option>`).join('');
         typeFilter.value = 'All';
+        assignTypeColors(types);
+        renderLegend(types);
+      }
+
+      function markerIcon(color){
+        return L.divIcon({ className:'type-marker', html:`<span style="background:${color}"></span>`, iconSize:[18,18], iconAnchor:[9,9] });
       }
 
       function renderMarkers(rows){
@@ -152,7 +202,8 @@
         rows.forEach(r => {
           const lat = parseFloat(r.latitude), lon = parseFloat(r.longitude);
           if (!isFinite(lat) || !isFinite(lon)) return;
-          const m = L.marker([lat, lon]);
+          const color = typeColors[r.type_name] || '#64748b';
+          const m = L.marker([lat, lon], { icon: markerIcon(color) });
           const url = r.URL || `https://iranassistance.com/medical-centers/${r.id}`;
           const safe = s => (s||'').replace(/</g,'&lt;');
           m.bindPopup(`
@@ -162,6 +213,7 @@
               <a href="${url}" target="_blank" rel="noopener" style="display:inline-block;margin-top:6px;color:#0a58ca">مشاهده صفحه</a>
             </div>
           `);
+          m.bindTooltip(`${safe(r.name)}`, {direction:'top', offset:[0,-8]});
           cluster.addLayer(m);
         });
         stats.textContent = `${rows.length.toLocaleString()} مرکز نمایش داده می‌شود`;
@@ -228,4 +280,3 @@
     </script>
   </body>
 </html>
-
