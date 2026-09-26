@@ -1,6 +1,8 @@
 # MedMap-Iran 🏥
 
-Interactive map of medical service centers covered by supplementary insurance in Iran.
+Interactive map of medical centers under contract with **SOS Pasargard insurance** in Iran (مراکز خدمات درمانی که با بیمه SOS پاسارگارد قرارداد دارند), operated through [Iran Assistance / کمک‌رسان ایران](https://iranassistance.com/medical-centers), which publishes the source directory of contracted centers.
+
+Live map: https://mheidari98.github.io/MedMap/
 
 ## Features
 

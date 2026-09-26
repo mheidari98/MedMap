@@ -3,7 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>نقشه مراکز درمانی | MedMap</title>
+    <title>مراکز درمانی طرف‌قرارداد بیمه SOS پاسارگارد | MedMap</title>
+    <meta name="description" content="نقشه مراکز خدمات درمانی که با بیمه SOS پاسارگارد قرارداد دارند." />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
@@ -46,7 +47,7 @@
   <body>
     <div class="layout">
       <div class="panel">
-        <h1 class="title">نقشه مراکز درمانی 🏥</h1>
+        <h1 class="title">مراکز درمانی بیمه SOS پاسارگارد 🏥</h1>
 
         <label for="nameFilter">نام مرکز</label>
         <input id="nameFilter" placeholder="قسمتی از نام را بنویسید" />
@@ -101,10 +102,23 @@
       const DATA_URL = './medical-centers.json';
       const iranCenter = [32.4279, 53.6880];
 
+      // CARTO's free raster basemaps (basemaps.cartocdn.com) started requiring an API key on
+      // 2026-09-23; without one, tiles load fine but are stamped "API KEY REQUIRED". The key
+      // is free (no CARTO account needed) and meant to be used client-side like this — get one
+      // at https://carto.com/basemaps/apikey/. Esri's keyless gray-canvas tiles were considered
+      // as a swap, but Esri sanction-blocks Iran-origin traffic, which would break these layers
+      // entirely for this site's actual audience, so CARTO + key stays.
+      //
+      // The placeholder below is swapped for the real key at deploy time by
+      // .github/workflows/deploy-pages.yml, from the CARTO_API_KEY repo secret — never committed
+      // in plaintext. The key is Referer-restricted (mheidari98.github.io) on CARTO's side, so a
+      // copy pulled from view-source/devtools can't be reused elsewhere.
+      const CARTO_API_KEY = '__CARTO_API_KEY__';
+      const cartoUrl = style => `https://{s}.basemaps.cartocdn.com/${style}/{z}/{x}/{y}{r}.png` + (CARTO_API_KEY ? `?key=${CARTO_API_KEY}` : '');
       const baseLayers = {
         'osm': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }),
-        'carto-light': L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap &copy; CARTO' }),
-        'carto-dark': L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap &copy; CARTO' })
+        'carto-light': L.tileLayer(cartoUrl('light_all'), { attribution: '&copy; OpenStreetMap &copy; CARTO' }),
+        'carto-dark': L.tileLayer(cartoUrl('dark_all'), { attribution: '&copy; OpenStreetMap &copy; CARTO' })
       };
 
       const map = L.map('map', { center: iranCenter, zoom: 6, layers: [baseLayers['osm']] });
