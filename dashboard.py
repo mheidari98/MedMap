@@ -368,7 +368,7 @@ app.index_string = '''
 '''
 
 if __name__ == "__main__":
-    app.run_server(
+    app.run(
         debug=DEBUG,
         host=HOST,
         port=PORT
